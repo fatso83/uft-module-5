@@ -3,17 +3,31 @@ import Observable from "../Shared/Observable";
 
 class BooksRepository {
   programmersModel = null;
-  callback = null;
-  usePublicBooks = false;
+  #usePublic = false;
+  #order = null;
 
   constructor() {
     this.gateway = new HttpGateway();
     this.programmersModel = new Observable([]);
   }
 
-  get subResource() {
-    return this.usePublicBooks ? "allbooks" : "books";
-  }
+  #applyTransformationsAndUpdatePM = (listOfPmBooks) => {
+    this.programmersModel.value = this.#applySorting(listOfPmBooks);
+  };
+
+  #applySorting = (list) => {
+    if (["ASC", "DESC"].includes(this.#order)) {
+      const direction = this.#order === "ASC" || -1;
+      return list.slice().sort((a, b) => {
+        return direction * a.name.localeCompare(b.name);
+      });
+    }
+    return list;
+  };
+
+  #subResource = () => {
+    return this.#usePublic ? "allbooks" : "books";
+  };
 
   getBooks = async (callback) => {
     this.programmersModel.subscribe(callback);
@@ -21,17 +35,20 @@ class BooksRepository {
   };
 
   loadApiData = async () => {
-    const dto = await this.gateway.get("/" + this.subResource);
-    this.programmersModel.value = dto.result.map((dtoItem) => {
-      return dtoItem;
-    });
+    const dto = await this.gateway.get("/" + this.#subResource());
+    const pmBooks = dto.result.map((dtoItem) => dtoItem);
+    this.#applyTransformationsAndUpdatePM(pmBooks);
   };
 
-  refreshModelData = () => {
-    this.programmersModel.value = this.programmersModel.value.map((pm) => {
-      return pm;
-    });
-  };
+  async usePublicBooks(flag) {
+    this.#usePublic = flag;
+    this.loadApiData();
+  }
+
+  async setSortOrder(order) {
+    this.#order = order;
+    this.#applyTransformationsAndUpdatePM(this.programmersModel.value);
+  }
 }
 
 const booksRepository = new BooksRepository();
